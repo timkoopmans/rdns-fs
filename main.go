@@ -9,6 +9,7 @@ import (
     "regexp"
     "sync"
     "github.com/cheggaaa/pb"
+    "net"
 )
 
 type Record struct {
@@ -71,30 +72,40 @@ func processRows(rows <-chan string, bar *pb.ProgressBar, wg *sync.WaitGroup) {
     for row := range rows {
         var record Record
         json.Unmarshal([]byte(row), &record)
-        res := m.ReplaceAllString(record.Name, "/")
-        path := fmt.Sprintf("rdns/%s", res)
-        filename := fmt.Sprintf("rdns/%s/%s", res, record.Timestamp)
+        ip := record.Name
 
-        if _, err := os.Stat(filename); os.IsNotExist(err) {
-            os.MkdirAll(path, 0700)
-        }
+        if checkSubnetsContainAddress(ip) {
+            res := m.ReplaceAllString(record.Name, "/")
+            path := fmt.Sprintf("rdns/%s", res)
+            filename := fmt.Sprintf("rdns/%s/%s", res, record.Timestamp)
 
-        outfile, err := os.Create(filename)
+            if _, err := os.Stat(filename); os.IsNotExist(err) {
+                os.MkdirAll(path, 0700)
+            }
 
-        if err != nil {
-            fmt.Println("unable to create the file", err)
-            return
-        }
-        l, err := outfile.WriteString(row)
-        if err != nil {
-            fmt.Println("unable to write the file", err)
-            outfile.Close()
-            return
-        }
-        bar.Add(l)
-        err = outfile.Close()
-        if err != nil {
-            fmt.Println("some other error writing the file", err)
+            outfile, err := os.Create(filename)
+
+            if err != nil {
+                fmt.Println("unable to create the file", err)
+                return
+            }
+
+            bytes, err := outfile.WriteString(row)
+            if err != nil {
+                fmt.Println("unable to write the file", err)
+                outfile.Close()
+                return
+            }
+            bar.Add(bytes)
+
+            err = outfile.Close()
+            if err != nil {
+                fmt.Println("some other error writing the file", err)
+                return
+            }
+        } else {
+            //    skip record
+            bar.Add(len(row) + 1)
             return
         }
     }
@@ -102,3 +113,38 @@ func processRows(rows <-chan string, bar *pb.ProgressBar, wg *sync.WaitGroup) {
     wg.Done()
 }
 
+func readLines(path string) ([]string, error) {
+    file, err := os.Open(path)
+    if err != nil {
+        return nil, err
+    }
+    defer file.Close()
+
+    var lines []string
+    scanner := bufio.NewScanner(file)
+    for scanner.Scan() {
+        lines = append(lines, scanner.Text())
+    }
+    return lines, scanner.Err()
+}
+
+func checkSubnetsContainAddress(ip string) bool {
+    var result bool
+    address := net.ParseIP(ip)
+
+    lines, err := readLines("cidrs.txt")
+    if err != nil {
+        fmt.Println("unable to readlines from file", err)
+    }
+
+    for _, cidr := range lines {
+        _, subnet, _ := net.ParseCIDR(cidr)
+
+        if subnet.Contains(address) {
+            //fmt.Println("IP in subnet", address)
+            result = true
+        }
+    }
+
+    return result
+}
