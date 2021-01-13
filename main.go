@@ -90,13 +90,13 @@ func processRows(rows <-chan string, bar *pb.ProgressBar, wg *sync.WaitGroup) {
                 return
             }
 
-            bytes, err := outfile.WriteString(row)
+            bytes, err := outfile.WriteString(record.Value)
             if err != nil {
-                fmt.Println("unable to write the file", err)
+                fmt.Println("unable to write the file", bytes, err)
                 outfile.Close()
                 return
             }
-            bar.Add(bytes)
+            bar.Add(len(row) + 1)
 
             err = outfile.Close()
             if err != nil {
