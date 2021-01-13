@@ -18,7 +18,54 @@ type Record struct {
     Type string
 }
 
-func processRow(rows <-chan string, bar *pb.ProgressBar) {
+func main() {
+    var wg sync.WaitGroup
+
+    rows := make(chan string)
+
+    filePath := flag.String("file", "test.json", "file path to read from")
+    workers := flag.Int("workers", 500, "number of concurrent workers")
+    flag.Parse()
+
+    file, err := os.Open(*filePath)
+    if err != nil {
+        fmt.Println("unable to open the file", err)
+        return
+    }
+    defer file.Close()
+
+    fileStat, err := file.Stat()
+    if err != nil {
+        fmt.Println("unable to get file stat")
+        return
+    }
+
+    fileSize := fileStat.Size()
+
+    bar := pb.StartNew(int(fileSize))
+
+    go func() {
+        scanner := bufio.NewScanner(file)
+
+        for scanner.Scan() {
+            rows <- scanner.Text()
+        }
+        if err := scanner.Err(); err != nil {
+            fmt.Println("unable to scan the file", err)
+        }
+        close(rows)
+    }()
+
+    for i := 0; i < *workers; i++ {
+        wg.Add(1)
+        go processRows(rows, bar, &wg)
+    }
+
+    wg.Wait()
+    bar.Finish()
+}
+
+func processRows(rows <-chan string, bar *pb.ProgressBar, wg *sync.WaitGroup) {
     for row := range rows {
         var record Record
         json.Unmarshal([]byte(row), &record)
@@ -47,61 +94,10 @@ func processRow(rows <-chan string, bar *pb.ProgressBar) {
         err = outfile.Close()
         if err != nil {
             fmt.Println("some other error writing the file", err)
-          return
+            return
         }
     }
+
+    wg.Done()
 }
 
-func processFile(file *os.File, workers *int) {
-    var wg sync.WaitGroup
-
-    filestat, err := file.Stat()
-    if err != nil {
-        fmt.Println("unable to get file stat")
-        return
-    }
-
-    fileSize := filestat.Size()
-
-    bar := pb.StartNew(int(fileSize))
-
-    rows := make(chan string)
-
-    for w := 1; w <= *workers; w++ {
-        wg.Add(1)
-        go func() {
-            processRow(rows, bar)
-            wg.Done()
-        }()
-    }
-
-    go func() {
-        scanner := bufio.NewScanner(file)
-        for scanner.Scan() {
-            rows <- scanner.Text()
-        }
-        if err := scanner.Err(); err != nil {
-            fmt.Println("unable to scan the file", err)
-        }
-        close(rows)
-    }()
-}
-
-func main() {
-    var wg sync.WaitGroup
-
-    fptr := flag.String("file", "test.json", "file path to read from")
-    workers := flag.Int("workers", 500, "number of concurrent workers")
-    flag.Parse()
-
-    file, err := os.Open(*fptr)
-    if err != nil {
-        fmt.Println("unable to open the file", err)
-        return
-    }
-    defer file.Close()
-
-    wg.Add(1)
-    go processFile(file, workers)
-    wg.Wait()
-}
