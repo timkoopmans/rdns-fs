@@ -66,10 +66,11 @@ func main() {
 }
 
 func processRows(rows <-chan string, bar *pb.ProgressBar, wg *sync.WaitGroup) {
+    m := regexp.MustCompile(`\.`)
+    
     for row := range rows {
         var record Record
         json.Unmarshal([]byte(row), &record)
-        m := regexp.MustCompile(`\.`)
         res := m.ReplaceAllString(record.Name, "/")
         path := fmt.Sprintf("rdns/%s", res)
         filename := fmt.Sprintf("rdns/%s/%s", res, record.Timestamp)
