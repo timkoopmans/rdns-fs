@@ -26,7 +26,7 @@ func main() {
     rows := make(chan string)
 
     filePath := flag.String("file", "test.json", "file path to read from")
-    workers := flag.Int("workers", 500, "number of concurrent workers")
+    workers := flag.Int("workers", 50, "number of concurrent workers")
     flag.Parse()
 
     file, err := os.Open(*filePath)
@@ -81,7 +81,7 @@ func main() {
 
 func processRows(rows <-chan string, bar *pb.ProgressBar, ranger cidranger.Ranger, wg *sync.WaitGroup) {
     m := regexp.MustCompile(`\.`)
-    
+
     for row := range rows {
         var record Record
         json.Unmarshal([]byte(row), &record)
@@ -108,7 +108,7 @@ func processRows(rows <-chan string, bar *pb.ProgressBar, ranger cidranger.Range
                 return
             }
 
-            bytes, err := outfile.WriteString(record.Value)
+            bytes, err := outfile.WriteString(record.Value + "\n")
             if err != nil {
                 fmt.Println("unable to write the file", bytes, err)
                 outfile.Close()
