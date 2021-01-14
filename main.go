@@ -105,8 +105,7 @@ func processRows(rows <-chan string, bar *pb.ProgressBar, wg *sync.WaitGroup) {
             }
         } else {
             //    skip record
-            bar.Add(len(row))
-            return
+            bar.Add(len(row) + 1)
         }
     }
 
