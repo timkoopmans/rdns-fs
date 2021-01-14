@@ -21,4 +21,9 @@ with each timestamp being a copy  of the PTR record at that point in time e.g.
 
 To execute:
     
-    ./rdns-fs -file <path-to-your>-rdns.json -workers <number of concurrent workers, default 50>
+    ./rdns-fs -file <path-to-your>-rdns.json -cdir <path-to-your-cidrs>.txt -workers <number of concurrent workers, default 50>
+
+AWS CIDR
+    
+    curl -s https://rdap.arin.net/registry/entity/AT-88-Z | jq -cr '.networks[].cidr0_cidrs[] | .v4prefix + "/" + (.length|tostring)'
+
