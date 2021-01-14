@@ -139,7 +139,6 @@ func checkSubnetsContainAddress(ip string, cidrs []string) bool {
         _, subnet, _ := net.ParseCIDR(cidr)
 
         if subnet.Contains(address) {
-            //fmt.Println("IP in subnet", address)
             return true
         }
     }
