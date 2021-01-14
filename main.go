@@ -25,7 +25,8 @@ func main() {
 
     rows := make(chan string)
 
-    filePath := flag.String("file", "test.json", "file path to read from")
+    filePath := flag.String("file", "test.json", "file path to read IPs from")
+    cidrsPath := flag.String("cidr", "cidrs.txt", "file path to read CIDRs from")
     workers := flag.Int("workers", 50, "number of concurrent workers")
     flag.Parse()
 
@@ -58,9 +59,9 @@ func main() {
         close(rows)
     }()
 
-    cidrs, err := readLines("cidrs.txt")
+    cidrs, err := readLines(*cidrsPath)
     if err != nil {
-        fmt.Println("unable to readlines from file", err)
+        fmt.Println("unable to read lines from the file", err)
     }
 
     ranger := cidranger.NewPCTrieRanger()
