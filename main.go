@@ -96,7 +96,7 @@ func processRows(rows <-chan string, bar *pb.ProgressBar, wg *sync.WaitGroup) {
                 outfile.Close()
                 return
             }
-            bar.Add(len(row) + 1)
+            bar.Add(len(row))
 
             err = outfile.Close()
             if err != nil {
@@ -105,7 +105,7 @@ func processRows(rows <-chan string, bar *pb.ProgressBar, wg *sync.WaitGroup) {
             }
         } else {
             //    skip record
-            bar.Add(len(row) + 1)
+            bar.Add(len(row))
             return
         }
     }
@@ -129,7 +129,6 @@ func readLines(path string) ([]string, error) {
 }
 
 func checkSubnetsContainAddress(ip string) bool {
-    var result bool
     address := net.ParseIP(ip)
 
     lines, err := readLines("cidrs.txt")
@@ -142,9 +141,9 @@ func checkSubnetsContainAddress(ip string) bool {
 
         if subnet.Contains(address) {
             //fmt.Println("IP in subnet", address)
-            result = true
+            return true
         }
     }
 
-    return result
+    return false
 }
