@@ -57,16 +57,21 @@ func main() {
         close(rows)
     }()
 
+    cidrs, err := readLines("cidrs.txt")
+    if err != nil {
+        fmt.Println("unable to readlines from file", err)
+    }
+
     for i := 0; i < *workers; i++ {
         wg.Add(1)
-        go processRows(rows, bar, &wg)
+        go processRows(rows, bar, cidrs, &wg)
     }
 
     wg.Wait()
     bar.Finish()
 }
 
-func processRows(rows <-chan string, bar *pb.ProgressBar, wg *sync.WaitGroup) {
+func processRows(rows <-chan string, bar *pb.ProgressBar, cidrs []string, wg *sync.WaitGroup) {
     m := regexp.MustCompile(`\.`)
     
     for row := range rows {
@@ -74,7 +79,7 @@ func processRows(rows <-chan string, bar *pb.ProgressBar, wg *sync.WaitGroup) {
         json.Unmarshal([]byte(row), &record)
         ip := record.Name
 
-        if checkSubnetsContainAddress(ip) {
+        if checkSubnetsContainAddress(ip, cidrs) {
             res := m.ReplaceAllString(record.Name, "/")
             path := fmt.Sprintf("rdns/%s", res)
             filename := fmt.Sprintf("rdns/%s/%s", res, record.Timestamp)
@@ -127,15 +132,10 @@ func readLines(path string) ([]string, error) {
     return lines, scanner.Err()
 }
 
-func checkSubnetsContainAddress(ip string) bool {
+func checkSubnetsContainAddress(ip string, cidrs []string) bool {
     address := net.ParseIP(ip)
 
-    lines, err := readLines("cidrs.txt")
-    if err != nil {
-        fmt.Println("unable to readlines from file", err)
-    }
-
-    for _, cidr := range lines {
+    for _, cidr := range cidrs {
         _, subnet, _ := net.ParseCIDR(cidr)
 
         if subnet.Contains(address) {
