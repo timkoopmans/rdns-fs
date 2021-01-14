@@ -10,6 +10,7 @@ import (
     "sync"
     "github.com/cheggaaa/pb"
     "net"
+    "strings"
 )
 
 type Record struct {
@@ -79,37 +80,40 @@ func processRows(rows <-chan string, bar *pb.ProgressBar, cidrs []string, wg *sy
         json.Unmarshal([]byte(row), &record)
         ip := record.Name
 
-        if checkSubnetsContainAddress(ip, cidrs) {
-            res := m.ReplaceAllString(record.Name, "/")
-            path := fmt.Sprintf("rdns/%s", res)
-            filename := fmt.Sprintf("rdns/%s/%s", res, record.Timestamp)
+        if checkFirstOctet(ip) {
+            if checkSubnetsContainAddress(ip, cidrs) {
+                res := m.ReplaceAllString(record.Name, "/")
+                path := fmt.Sprintf("rdns/%s", res)
+                filename := fmt.Sprintf("rdns/%s/%s", res, record.Timestamp)
 
-            if _, err := os.Stat(filename); os.IsNotExist(err) {
-                os.MkdirAll(path, 0700)
-            }
+                if _, err := os.Stat(filename); os.IsNotExist(err) {
+                    os.MkdirAll(path, 0700)
+                }
 
-            outfile, err := os.Create(filename)
+                outfile, err := os.Create(filename)
 
-            if err != nil {
-                fmt.Println("unable to create the file", err)
-                return
-            }
+                if err != nil {
+                    fmt.Println("unable to create the file", err)
+                    return
+                }
 
-            bytes, err := outfile.WriteString(record.Value)
-            if err != nil {
-                fmt.Println("unable to write the file", bytes, err)
-                outfile.Close()
-                return
-            }
-            bar.Add(len(row))
+                bytes, err := outfile.WriteString(record.Value)
+                if err != nil {
+                    fmt.Println("unable to write the file", bytes, err)
+                    outfile.Close()
+                    return
+                }
+                bar.Add(len(row))
 
-            err = outfile.Close()
-            if err != nil {
-                fmt.Println("some other error writing the file", err)
-                return
+                err = outfile.Close()
+                if err != nil {
+                    fmt.Println("some other error writing the file", err)
+                    return
+                }
+            } else {
+                bar.Add(len(row) + 1)
             }
         } else {
-            //    skip record
             bar.Add(len(row) + 1)
         }
     }
@@ -130,6 +134,24 @@ func readLines(path string) ([]string, error) {
         lines = append(lines, scanner.Text())
     }
     return lines, scanner.Err()
+}
+
+func checkFirstOctet(ip string) bool {
+    filter := [100]string{
+        "103","108","116","118","119","120","13","130","140","143","144","15","150","161","172","176","177","178",
+        "18","180","185","199","203","204","205","207","209","216","223","27","3","34","35","36","43","44","52","54",
+        "58","63","64","65","69","70","71","72","75","76","87","99",
+    }
+
+    firstOctet := strings.Split(ip, ".")
+
+    for _, v := range filter {
+        if v == firstOctet[0] {
+            return true
+        }
+    }
+
+    return false
 }
 
 func checkSubnetsContainAddress(ip string, cidrs []string) bool {
