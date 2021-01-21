@@ -142,9 +142,8 @@ func writeLines(lines chan string, done chan bool) {
             fmt.Println("unable to close the file", err)
             return
         }
-
-        done <- true
     }
+    done <- true
 }
 
 func readLines(path string) ([]string, error) {
