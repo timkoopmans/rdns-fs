@@ -110,7 +110,7 @@ func filterRows(rows <-chan string, bar *pb.ProgressBar, ranger cidranger.Ranger
 
             logger := log.New(file, "", 0)
             logger.Output(2, row)
-            
+
             err = file.Close()
             if err != nil {
                 fmt.Println("unable to close the file", err)
