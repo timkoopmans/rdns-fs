@@ -11,6 +11,7 @@ import (
     "os"
     "sync"
     "strings"
+    "log"
 )
 
 type Record struct {
@@ -107,13 +108,9 @@ func filterRows(rows <-chan string, bar *pb.ProgressBar, ranger cidranger.Ranger
                 return
             }
 
-            _, err = fmt.Fprintln(file, row)
-            if err != nil {
-                fmt.Println("unable to print to the file", err)
-                file.Close()
-                return
-            }
-
+            logger := log.New(file, "", 0)
+            logger.Output(2, row)
+            
             err = file.Close()
             if err != nil {
                 fmt.Println("unable to close the file", err)
