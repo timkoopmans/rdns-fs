@@ -9,8 +9,8 @@ import (
     "github.com/yl2chen/cidranger"
     "net"
     "os"
-    "regexp"
     "sync"
+    "strings"
 )
 
 type Record struct {
@@ -24,6 +24,8 @@ func main() {
     var wg sync.WaitGroup
 
     rows := make(chan string)
+    lines := make(chan string)
+    done := make(chan bool)
 
     filePath := flag.String("file", "test.json", "file path to read IPs from")
     cidrsPath := flag.String("cidr", "cidrs.txt", "file path to read CIDRs from")
@@ -73,16 +75,23 @@ func main() {
 
     for i := 0; i < *workers; i++ {
         wg.Add(1)
-        go processRows(rows, bar, ranger, &wg)
+        go filterRows(rows, lines, bar, ranger, &wg)
     }
 
+    go writeLines(lines, done)
+
     wg.Wait()
-    bar.Finish()
+    close(lines)
+
+    d := <-done
+    if d == true {
+        bar.Finish()
+    } else {
+        fmt.Println("File writing failed")
+    }
 }
 
-func processRows(rows <-chan string, bar *pb.ProgressBar, ranger cidranger.Ranger, wg *sync.WaitGroup) {
-    m := regexp.MustCompile(`\.`)
-
+func filterRows(rows <-chan string, lines chan<- string, bar *pb.ProgressBar, ranger cidranger.Ranger, wg *sync.WaitGroup) {
     for row := range rows {
         var record Record
         json.Unmarshal([]byte(row), &record)
@@ -93,41 +102,49 @@ func processRows(rows <-chan string, bar *pb.ProgressBar, ranger cidranger.Range
             fmt.Println("unable to parse IP", err)
             return
         }
+
         if contains {
-            res := m.ReplaceAllString(record.Name, "/")
-            path := fmt.Sprintf("rdns/%s", res)
-            filename := fmt.Sprintf("rdns/%s/%s", res, record.Timestamp)
-
-            if _, err := os.Stat(filename); os.IsNotExist(err) {
-                os.MkdirAll(path, 0700)
-            }
-
-            outfile, err := os.Create(filename)
-
-            if err != nil {
-                fmt.Println("unable to create the file", err)
-                return
-            }
-
-            bytes, err := outfile.WriteString(record.Value + "\n")
-            if err != nil {
-                fmt.Println("unable to write the file", bytes, err)
-                outfile.Close()
-                return
-            }
+            lines <- row
             bar.Add(len(row))
-
-            err = outfile.Close()
-            if err != nil {
-                fmt.Println("some other error writing the file", err)
-                return
-            }
         } else {
             bar.Add(len(row) + 1)
         }
     }
 
     wg.Done()
+}
+
+func writeLines(lines chan string, done chan bool) {
+    for line := range lines {
+        var record Record
+        json.Unmarshal([]byte(line), &record)
+
+        ip := record.Name
+        firstOctet := strings.Split(ip, ".")[0]
+
+        filename := fmt.Sprintf("rdns.%s.0.0.0.json", firstOctet)
+
+        file, err := os.OpenFile(filename, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+        if err != nil {
+            fmt.Println("unable to open the file", err)
+            return
+        }
+
+        _, err = fmt.Fprintln(file, line)
+        if err != nil {
+            fmt.Println("unable to write the file", err)
+            file.Close()
+            return
+        }
+
+        err = file.Close()
+        if err != nil {
+            fmt.Println("unable to close the file", err)
+            return
+        }
+
+        done <- true
+    }
 }
 
 func readLines(path string) ([]string, error) {
