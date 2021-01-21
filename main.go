@@ -80,14 +80,16 @@ func main() {
 
     go writeLines(lines, done)
 
-    wg.Wait()
-    close(lines)
+    go func() {
+        wg.Wait()
+        close(lines)
+    }()
 
     d := <-done
     if d == true {
         bar.Finish()
     } else {
-        fmt.Println("File writing failed")
+        fmt.Println("Processing not done.")
     }
 }
 
@@ -127,12 +129,14 @@ func writeLines(lines chan string, done chan bool) {
         file, err := os.OpenFile(filename, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
         if err != nil {
             fmt.Println("unable to open the file", err)
+            done <- false
             return
         }
 
         _, err = fmt.Fprintln(file, line)
         if err != nil {
             fmt.Println("unable to write the file", err)
+            done <- false
             file.Close()
             return
         }
@@ -140,6 +144,7 @@ func writeLines(lines chan string, done chan bool) {
         err = file.Close()
         if err != nil {
             fmt.Println("unable to close the file", err)
+            done <- false
             return
         }
     }
